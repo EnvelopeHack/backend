@@ -8,9 +8,11 @@ public interface ProbabilityService {
 
     List<Probability> getProbabilityPlaceTable();
 
-    List<Double> getProbabilityTop2();
+    Double[] getProbabilityTop2();
 
-    List<Double> getProbabilityTop3();
+    Double[] getProbabilityTop3();
+
+    Double[][] getProbabilityTop2and3();
 
     Double[][] getPareProbability();
 

@@ -7,5 +7,5 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:142536}
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
     show-sql: true

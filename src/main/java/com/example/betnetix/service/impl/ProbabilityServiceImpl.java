@@ -33,32 +33,39 @@ public class ProbabilityServiceImpl implements ProbabilityService {
     }
 
     @Override
-    public List<Double> getProbabilityTop2() {
+    public Double[] getProbabilityTop2() {
 
         List<Runner> runners = runnerService.getRunners();
-        List<Double> probabilities = new ArrayList<>();
+        Double[] probabilities = new Double[runners.size()];
 
-        runners.forEach(runner -> {
-            var probs = probabilityRepository.getProbabilitiesByRunnerId(runner.getId()).getFirst();
+        for (int i = 0; i < runners.size(); i++) {
+            var probs = probabilityRepository.getProbabilitiesByRunnerId(runners.get(i).getId()).getFirst();
             var probability = probs.getProbabilityForFirst() + probs.getProbabilityForSecond();
-            probabilities.add(probability);
-        });
+            probabilities[i] = probability;
+        }
+
         return probabilities;
     }
 
     @Override
-    public List<Double> getProbabilityTop3() {
+    public Double[] getProbabilityTop3() {
 
         List<Runner> runners = runnerService.getRunners();
-        List<Double> probabilities = new ArrayList<>();
+        Double[] probabilities = new Double[runners.size()];
 
-        runners.forEach(runner -> {
-            var probs = probabilityRepository.getProbabilitiesByRunnerId(runner.getId()).getFirst();
-            var probability = probs.getProbabilityForFirst() + probs.getProbabilityForSecond()
-                    + probs.getProbabilityForThird();
-            probabilities.add(probability);
-        });
+        for (int i = 0; i < runners.size(); i++) {
+            var probs = probabilityRepository.getProbabilitiesByRunnerId(runners.get(i).getId()).getFirst();
+            var probability = probs.getProbabilityForFirst()
+                    + probs.getProbabilityForSecond() + probs.getProbabilityForThird();
+            probabilities[i] = probability;
+        }
+
         return probabilities;
+    }
+
+    @Override
+    public Double[][] getProbabilityTop2and3() {
+        return new Double[][]{getProbabilityTop2(), getProbabilityTop3()};
     }
 
     @Override
@@ -66,7 +73,6 @@ public class ProbabilityServiceImpl implements ProbabilityService {
 
         List<Runner> runners = runnerService.getRunners();
 
-//        List<List<Double>> probabilities = new ArrayList<>();
         Double[][] probabilities = new Double[runners.size()][runners.size()];
 
         for (int i = 0; i < runners.size(); i++) {

@@ -23,14 +23,9 @@ public class ProbabilityController {
         return probabilityService.getProbabilityPlaceTable();
     }
 
-    @GetMapping("top2")
-    public List<Double> getProbabilityTop2() {
-        return probabilityService.getProbabilityTop2();
-    }
-
-    @GetMapping("top3")
-    public List<Double> getProbabilityTop3(){
-        return probabilityService.getProbabilityTop3();
+    @GetMapping("top2and3")
+    public Double[][] getProbabilityTop2() {
+        return probabilityService.getProbabilityTop2and3();
     }
 
     @GetMapping("pares")
