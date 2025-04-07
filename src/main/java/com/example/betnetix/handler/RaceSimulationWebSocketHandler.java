@@ -1,8 +1,10 @@
 package com.example.betnetix.handler;
 
+import com.example.betnetix.model.RunnerParams;
 import com.example.betnetix.service.RaceService;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -19,73 +21,113 @@ public class RaceSimulationWebSocketHandler extends TextWebSocketHandler {
     @Autowired
     private RaceService raceService;
 
-    @Getter
-    private static class RunnerParams {
-        private double mu;
-        private double sigma;
 
-        public RunnerParams(double mu, double sigma) {
-            this.mu = mu;
-            this.sigma = sigma;
-        }
-
-    }
-
-    private final Map<Long, RunnerParams> studentParams = new HashMap<>();
+    private final Map<Long, RunnerParams> runnerParams = new HashMap<>();
     private final Map<Long, Double> positions = new ConcurrentHashMap<>();
     private final List<Long> finalPositions = Collections.synchronizedList(new ArrayList<>());
     private final double totalDistance = 100.0;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final HashMap<Integer, Long> places = new HashMap<>();
+
 
     public RaceSimulationWebSocketHandler() {
         // Инициализация параметров бегунов
-        studentParams.put(1L, new RunnerParams(10, 0.5));
-        studentParams.put(2L, new RunnerParams(10, 0.5));
-        studentParams.put(3L, new RunnerParams(10, 0.5));
-        studentParams.put(4L, new RunnerParams(10, 0.5));
-        studentParams.put(5L, new RunnerParams(10, 0.5));
-        studentParams.put(6L, new RunnerParams(10, 0.5));
+        runnerParams.put(1L, new RunnerParams(10, 0.5));
+        runnerParams.put(2L, new RunnerParams(10, 0.5));
+        runnerParams.put(3L, new RunnerParams(10, 0.5));
+        runnerParams.put(4L, new RunnerParams(10, 0.5));
+        runnerParams.put(5L, new RunnerParams(10, 0.5));
+        runnerParams.put(6L, new RunnerParams(10, 0.5));
 
         // Инициализация начальных позиций
-        studentParams.keySet().forEach(student -> positions.put(student, 0.0));
+        runnerParams.keySet().forEach(runner -> positions.put(runner, 0.0));
     }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         startSimulation(session);
+
+    }
+
+    @Override
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
+
+        try {
+
+            Map<Long, List<Double>> paramsMap = objectMapper.readValue(
+                    message.getPayload(),
+                    new TypeReference<>() {
+                    }
+            );
+
+
+            runnerParams.clear();
+            paramsMap.forEach((runnerId, params) -> {
+                if (params.size() >= 2) {
+                    runnerParams.put(runnerId, new RunnerParams(params.get(0), params.get(1)));
+                }
+            });
+
+
+            positions.clear();
+            runnerParams.keySet().forEach(runner -> positions.put(runner, 0.0));
+
+            session.sendMessage(new TextMessage("{\"status\":\"Parameters updated\"}"));
+
+        } catch (Exception e) {
+            session.sendMessage(new TextMessage("{\"error\":\"Invalid data format\"}"));
+        }
     }
 
     private void startSimulation(WebSocketSession session) throws Exception {
         int timeElapsed = 0;
         Random random = new Random();
 
+        List<Long> shuffledRunnerIds = new ArrayList<>(runnerParams.keySet());
+        Collections.shuffle(shuffledRunnerIds);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("second", timeElapsed);
+        data.put("positions", new HashMap<>(positions));
+        data.put("places", new HashMap<>(places));
+
+        // Отправка через WebSocket
+        String jsonData = objectMapper.writeValueAsString(data);
+        session.sendMessage(new TextMessage(jsonData));
+        System.out.println(jsonData);
+
+        Thread.sleep(1000);
+
         while (positions.values().stream().anyMatch(pos -> pos < totalDistance)) {
             timeElapsed++;
             Map<String, Double> currentSpeeds = new HashMap<>();
 
             // Расчет скоростей и обновление позиций
-            for (Long student : studentParams.keySet()) {
-                if (positions.get(student) < totalDistance) {
-                    RunnerParams params = studentParams.get(student);
+            for (Long runner : shuffledRunnerIds) {
+                System.out.println(runnerParams.get(runner).toString());
+                if (positions.get(runner) < totalDistance) {
+                    RunnerParams params = runnerParams.get(runner);
                     // Генерация нормального распределения
-                    double speed = params.getMu() + params.getSigma() * random.nextGaussian();
-                    double newPosition = Math.min(positions.get(student) + speed, totalDistance);
-                    positions.put(student, Math.round(newPosition * 100.0) / 100.0);
+                    double speed = params.mu() + params.sigma() * random.nextGaussian();
+                    double newPosition = Math.min(positions.get(runner) + speed, totalDistance);
+                    positions.put(runner, Math.round(newPosition * 100.0) / 100.0);
 
-                    if (positions.get(student) == totalDistance && !finalPositions.contains(student)) {
-                        finalPositions.add(student);
-                        System.out.println("Человек добежал: " + student);
+
+                    if (positions.get(runner) == totalDistance && !finalPositions.contains(runner)) {
+                        finalPositions.add(runner);
+                        System.out.println("Человек добежал: " + runner);
                     }
                 }
             }
-
+            recountPlaces();
             // Подготовка данных для отправки
-            Map<String, Object> data = new HashMap<>();
+            data = new HashMap<>();
             data.put("second", timeElapsed);
             data.put("positions", new HashMap<>(positions));
+            data.put("places", new HashMap<>(places));
 
             // Отправка через WebSocket
-            String jsonData = objectMapper.writeValueAsString(data);
+            jsonData = objectMapper.writeValueAsString(data);
             session.sendMessage(new TextMessage(jsonData));
             System.out.println(jsonData);
 
@@ -109,5 +151,25 @@ public class RaceSimulationWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
         System.err.println("Ошибка WebSocket: " + exception.getMessage());
+    }
+
+    private void recountPlaces() {
+
+        places.clear();
+
+        List<Long> stillRunning = positions.entrySet().stream()
+                .filter(entry -> entry.getValue() < 100)
+                .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                .map(Map.Entry::getKey)
+                .toList();
+
+
+        for (int i = 0; i < finalPositions.size(); i++) {
+            places.put(i + 1, finalPositions.get(i));
+        }
+        for (int i = 0; i < stillRunning.size(); i++) {
+            places.put(i + finalPositions.size() + 1, stillRunning.get(i));
+        }
+
     }
 }

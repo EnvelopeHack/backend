@@ -16,4 +16,8 @@ public class Runner {
 
     private String color;
 
+    private Double mu;
+
+    private Double sigma;
+
 }

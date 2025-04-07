@@ -4,4 +4,5 @@ public class EndpointConstants {
 
     public final static String API_PROBABILITY_URL = "api/v1/probabilities";
     public final static String API_STATISTIC_URL = "api/v1/statistics";
+    public final static String API_RUNNER_URL = "api/v1/runners";
 }
